@@ -45,20 +45,29 @@ end
 
 local function category(obj)
     local path = ancestryText(obj)
+    local name = string.lower(obj.Name)
+
+    -- Hardware is rigid. It never changes size; it is repositioned only.
     if path:find("pull") or path:find("handle") or path:find("hinge") then return "hardware" end
-    if path:find("leftside") or path:find("rightside") then return "side" end
-    if path:find("stile") then return "stile" end
-    if path:find("rail") then return "rail" end
-    if path:find("centerpanel") or path:find("panel") then return "panel" end
-    if path:find("back") then return "back" end
-    if path:find("toekick") then return "toe" end
-    return "general"
+
+    -- Fixed-width vertical members move outward/inward but keep their thickness.
+    if name:find("leftside") or name:find("rightside") then return "fixedEdge" end
+    if name:find("leftstile") or name:find("rightstile") or name:find("stile") then return "fixedEdge" end
+
+    -- Horizontal Shaker rails grow through their width only.
+    if name:find("toprail") or name:find("bottomrail") or name:find("rail") then return "stretch" end
+
+    -- Drawer/door center panels absorb center mass while keeping Y/Z unchanged.
+    if name:find("centerpanel") or name == "panel" or path:find("centerpanel") then return "stretch" end
+
+    if name:find("back") then return "stretch" end
+    if name:find("toekick") then return "stretch" end
+
+    return "stretch"
 end
 
 local function resolveRequestedWidth(model, requested)
     ensureAttributes(model)
-    -- Free custom width: only the global safety limits apply.
-    -- This intentionally removes the old nominal +/-2 inch restriction.
     local resolved = clamp(requested, Config.Limits.Width)
     local nominal = model:GetAttribute(Config.NominalWidthAttribute) or resolved
     model:SetAttribute(Config.AdjustedAttribute, math.abs(resolved - nominal) > EPS)
@@ -81,15 +90,21 @@ local function applyCenterMassWidth(model, targetWidth)
             local newSizeX = obj.Size.X
 
             if kind == "hardware" then
+                -- Pulls/handles stay exactly the same size.
+                -- Centered hardware stays centered; off-center hardware follows its side.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
+                else
+                    newX = 0
                 end
-            elseif kind == "side" or kind == "stile" then
+            elseif kind == "fixedEdge" then
+                -- Cabinet sides and Shaker stiles keep their original width.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
                 end
             else
-                -- Add/remove mass through the center; never scale Y or Z.
+                -- Rails, center panels, back and toe kick receive/remove mass at center.
+                -- Y and Z dimensions are never changed.
                 newSizeX = math.max(0.05, obj.Size.X + delta)
             end
 
