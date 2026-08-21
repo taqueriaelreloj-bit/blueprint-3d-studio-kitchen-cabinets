@@ -5,7 +5,7 @@ title Blueprint 3D Studio - Kitchen Cabinets - Install
 
 echo ==============================================
 echo Blueprint 3D Studio - Kitchen Cabinets
-echo Installing Rojo for this project...
+echo Installing Rojo 7.6.1 for this project...
 echo ==============================================
 echo.
 
@@ -22,7 +22,7 @@ if not exist rokit.toml (
   if errorlevel 1 goto :fail
 )
 
-rokit add rojo-rbx/rojo
+rokit add rojo-rbx/rojo@7.6.1
 if errorlevel 1 goto :fail
 
 rokit install
@@ -31,7 +31,8 @@ if errorlevel 1 goto :fail
 echo.
 echo ==============================================
 echo INSTALL COMPLETE
-necho Double-click RUN.bat to start Rojo.
+echo Rojo 7.6.1 is ready.
+echo Double-click RUN.bat to start Rojo.
 echo ==============================================
 pause
 exit /b 0
