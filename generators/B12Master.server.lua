@@ -12,7 +12,7 @@ local RAIL = 1.50
 local FRAME_T = 0.55
 local PANEL_T = 0.22
 local WHITE = Color3.fromRGB(190,190,188)
-local WOOD = Color3.fromRGB(194,154,105)
+-- Every cabinet component is painted the same gray; no exposed wood.\nlocal WOOD = WHITE
 local METAL = Color3.fromRGB(80,80,78)
 
 local function P(parent,name,size,pos,color)
