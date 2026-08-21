@@ -59,6 +59,13 @@ local PREVIEW_NAMES = {
  B12 = true,
 }
 
+-- B12 master mode must show one cabinet only. Remove the complete family
+-- preview so neighboring B9-B36 carcass panels cannot remain in the scene.
+local familyPreview = workspace:FindFirstChild("GeneratedShakerCabinets")
+if familyPreview then
+ familyPreview:Destroy()
+end
+
 for _,obj in ipairs(workspace:GetDescendants()) do
  if obj:IsA("Model") and PREVIEW_NAMES[obj.Name] then
   obj:Destroy()
@@ -121,5 +128,5 @@ c:SetAttribute("SideRevealInches",REVEAL)
 c:SetAttribute("DrawerDoorGapInches",GAP)
 c:SetAttribute("ToeKickHeightInches",TOE_H)
 c:SetAttribute("ToeKickRecessInches",TOE_DEPTH)
-c:SetAttribute("MasterVersion","4-single-preview")
-print("B12 MASTER SHAKER v4 SINGLE PREVIEW generated")
+c:SetAttribute("MasterVersion","5-isolated-gray-preview")
+print("B12 MASTER SHAKER v5 ISOLATED GRAY PREVIEW generated")
