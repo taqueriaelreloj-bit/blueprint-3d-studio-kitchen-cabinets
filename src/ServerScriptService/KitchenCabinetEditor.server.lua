@@ -4,6 +4,62 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Keep ONLY the approved single-door base cabinet family in the generated cabinet folder.
+-- This removes complete extra cabinet MODELS only; it never deletes child parts from a kept cabinet.
+local APPROVED_SINGLE_DOOR = {
+    B9 = true,
+    B12 = true,
+    B15 = true,
+    B18 = true,
+    B21 = true,
+}
+
+local function cabinetCodeFromName(name)
+    local upper = string.upper(name)
+    return string.match(upper, "_?(B%d+)$") or string.match(upper, "^(B%d+)$")
+end
+
+local function cleanupGeneratedCabinets()
+    local generated = workspace:FindFirstChild("GeneratedShakerCabinets")
+    if not generated then
+        warn("Cabinet cleanup skipped: Workspace.GeneratedShakerCabinets not found")
+        return
+    end
+
+    local kept = {}
+    local removed = {}
+
+    for _, child in ipairs(generated:GetChildren()) do
+        if child:IsA("Model") then
+            local code = cabinetCodeFromName(child.Name)
+            if code and APPROVED_SINGLE_DOOR[code] and not kept[code] then
+                kept[code] = child
+            else
+                table.insert(removed, child.Name)
+                child:Destroy()
+            end
+        end
+    end
+
+    local missing = {}
+    for code in pairs(APPROVED_SINGLE_DOOR) do
+        if not kept[code] then
+            table.insert(missing, code)
+        end
+    end
+    table.sort(missing)
+
+    print("Single-door cabinet cleanup complete. Kept: B9, B12, B15, B18, B21")
+    if #removed > 0 then
+        print("Removed extra cabinet models: " .. table.concat(removed, ", "))
+    end
+    if #missing > 0 then
+        warn("Approved cabinet models missing from Workspace: " .. table.concat(missing, ", "))
+    end
+end
+
+cleanupGeneratedCabinets()
+
 local folder = ReplicatedStorage:FindFirstChild("KitchenCabinetRemotes")
 if not folder then
     folder = Instance.new("Folder")
