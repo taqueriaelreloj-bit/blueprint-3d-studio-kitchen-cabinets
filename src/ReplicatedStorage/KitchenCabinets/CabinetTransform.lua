@@ -22,13 +22,6 @@ local function nominalFromName(model)
     return value and tonumber(value) or nil
 end
 
-local function isStandardWidth(value)
-    for _, w in ipairs(Config.StandardBaseWidths or {}) do
-        if math.abs(value - w) < EPS then return true end
-    end
-    return false
-end
-
 local function ensureAttributes(model)
     local size = getModelSize(model)
     if model:GetAttribute(Config.WidthAttribute) == nil then model:SetAttribute(Config.WidthAttribute, size.X) end
@@ -64,15 +57,10 @@ end
 
 local function resolveRequestedWidth(model, requested)
     ensureAttributes(model)
-    requested = clamp(requested, Config.Limits.Width)
-    if isStandardWidth(requested) then
-        model:SetAttribute(Config.NominalWidthAttribute, requested)
-        model:SetAttribute(Config.AdjustedAttribute, false)
-        return requested
-    end
-    local nominal = model:GetAttribute(Config.NominalWidthAttribute) or requested
-    local delta = Config.FieldAdjustment.MaxWidthDelta or 2
-    local resolved = math.clamp(requested, nominal - delta, nominal + delta)
+    -- Free custom width: only the global safety limits apply.
+    -- This intentionally removes the old nominal +/-2 inch restriction.
+    local resolved = clamp(requested, Config.Limits.Width)
+    local nominal = model:GetAttribute(Config.NominalWidthAttribute) or resolved
     model:SetAttribute(Config.AdjustedAttribute, math.abs(resolved - nominal) > EPS)
     return resolved
 end
@@ -93,19 +81,15 @@ local function applyCenterMassWidth(model, targetWidth)
             local newSizeX = obj.Size.X
 
             if kind == "hardware" then
-                -- Pulls/hinges keep exact size; centered hardware stays centered.
-                -- Off-center hardware follows its nearest edge without stretching.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
                 end
             elseif kind == "side" or kind == "stile" then
-                -- Fixed edge material: preserve thickness and move outward/inward by half delta.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
                 end
             else
-                -- Center-mass rule: add/remove material through the middle span.
-                -- Y/Z dimensions and positions are intentionally untouched.
+                -- Add/remove mass through the center; never scale Y or Z.
                 newSizeX = math.max(0.05, obj.Size.X + delta)
             end
 
@@ -138,7 +122,6 @@ function Transform.ResizeWidth(model, requestedWidth)
     local finalSize = correctExactWidth(model, targetWidth)
 
     model:SetAttribute(Config.WidthAttribute, finalSize.X)
-    -- Base cabinet resize is WIDTH ONLY. Preserve the original logical H/D.
     model:SetAttribute(Config.HeightAttribute, originalHeight)
     model:SetAttribute(Config.DepthAttribute, originalDepth)
     model:SetAttribute("RequestedWidthInches", requestedWidth)
@@ -148,8 +131,6 @@ function Transform.ResizeWidth(model, requestedWidth)
 end
 
 function Transform.Resize(model, width, _height, _depth)
-    -- Compatibility entry point used by the existing UI/server.
-    -- Height/depth arguments are intentionally ignored for base cabinets.
     return Transform.ResizeWidth(model, width)
 end
 
