@@ -12,9 +12,14 @@ echo.
 where rokit >nul 2>nul
 if errorlevel 1 (
   echo ERROR: Rokit was not found on this computer.
-  echo Install Rokit first, then run INSTALL.bat again.
   pause
   exit /b 1
+)
+
+if not exist rokit.toml (
+  echo Creating project manifest...
+  rokit init
+  if errorlevel 1 goto :fail
 )
 
 rokit add rojo-rbx/rojo
@@ -24,8 +29,10 @@ rokit install
 if errorlevel 1 goto :fail
 
 echo.
-echo Rojo installed successfully.
-echo You can now double-click RUN.bat.
+echo ==============================================
+echo INSTALL COMPLETE
+necho Double-click RUN.bat to start Rojo.
+echo ==============================================
 pause
 exit /b 0
 
