@@ -79,7 +79,7 @@ local function resolveRequestedWidth(model, requested)
     return resolved
 end
 
-local function collectRigidPulls(model, pivot)
+local function collectPullGroups(model, pivot)
     local groups = {}
     for _, obj in ipairs(model:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -87,34 +87,56 @@ local function collectRigidPulls(model, pivot)
             if container then
                 local group = groups[container]
                 if not group then
-                    group = { parts = {}, sumX = 0, count = 0 }
+                    group = { parts = {}, minX = math.huge, maxX = -math.huge, minY = math.huge, maxY = -math.huge }
                     groups[container] = group
                 end
                 local localCf = pivot:ToObjectSpace(obj.CFrame)
+                local p = localCf.Position
                 table.insert(group.parts, { part = obj, localCf = localCf, size = obj.Size })
-                group.sumX += localCf.Position.X
-                group.count += 1
+                group.minX = math.min(group.minX, p.X)
+                group.maxX = math.max(group.maxX, p.X)
+                group.minY = math.min(group.minY, p.Y)
+                group.maxY = math.max(group.maxY, p.Y)
             end
         end
     end
     for _, group in pairs(groups) do
-        group.centerX = group.count > 0 and group.sumX / group.count or 0
+        group.centerX = (group.minX + group.maxX) / 2
+        group.spanX = group.maxX - group.minX
+        group.spanY = group.maxY - group.minY
+        group.horizontal = group.spanX >= group.spanY
     end
     return groups
 end
 
-local function applyRigidPulls(groups, pivot, delta)
+local function applyPullGroups(groups, pivot, delta, widthScale)
     for _, group in pairs(groups) do
-        -- Move the entire multi-part pull as one rigid assembly.
-        -- Internal spacing, screw/post distance, bar length and part sizes stay unchanged.
-        local shiftX = 0
+        local groupShiftX = 0
         if math.abs(group.centerX) > EPS then
-            shiftX = group.centerX > 0 and delta/2 or -delta/2
+            groupShiftX = group.centerX > 0 and delta/2 or -delta/2
         end
+
         for _, saved in ipairs(group.parts) do
+            local part = saved.part
             local p = saved.localCf.Position
-            saved.part.Size = saved.size
-            saved.part.CFrame = pivot * CFrame.new(p.X + shiftX, p.Y, p.Z) * (saved.localCf - saved.localCf.Position)
+            local name = string.lower(part.Name)
+            local relativeX = p.X - group.centerX
+            local newX = p.X + groupShiftX
+            local newSize = saved.size
+
+            if group.horizontal then
+                -- Horizontal pulls grow with cabinet width as one 3-piece assembly.
+                -- Posts/screws keep their thickness but move apart proportionally.
+                newX = group.centerX + groupShiftX + (relativeX * widthScale)
+
+                -- Only the long center bar stretches; posts remain the same size.
+                if name:find("bar") or name:find("rail") or name:find("center") then
+                    newSize = Vector3.new(math.max(0.05, saved.size.X * widthScale), saved.size.Y, saved.size.Z)
+                end
+            end
+
+            part.Size = newSize
+            part.CFrame = pivot * CFrame.new(newX, p.Y, p.Z) * (saved.localCf - saved.localCf.Position)
         end
     end
 end
@@ -125,7 +147,8 @@ local function applyCenterMassWidth(model, targetWidth)
     if oldSize.X <= EPS then return end
 
     local delta = targetWidth - oldSize.X
-    local rigidPulls = collectRigidPulls(model, pivot)
+    local widthScale = targetWidth / oldSize.X
+    local pullGroups = collectPullGroups(model, pivot)
 
     for _, obj in ipairs(model:GetDescendants()) do
         if obj:IsA("BasePart") and not getPullContainer(obj, model) then
@@ -136,7 +159,6 @@ local function applyCenterMassWidth(model, targetWidth)
             local newSizeX = obj.Size.X
 
             if kind == "hardware" then
-                -- Single-part hardware remains rigid too.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
                 end
@@ -153,7 +175,7 @@ local function applyCenterMassWidth(model, targetWidth)
         end
     end
 
-    applyRigidPulls(rigidPulls, pivot, delta)
+    applyPullGroups(pullGroups, pivot, delta, widthScale)
 end
 
 local function correctExactWidth(model, targetWidth)
