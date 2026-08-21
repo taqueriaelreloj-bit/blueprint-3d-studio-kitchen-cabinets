@@ -18,14 +18,14 @@ Config.Limits = {
     Depth = { Min = 12, Max = 36 },
 }
 
--- J&K-style base cabinet planning: standard widths are normally 3-inch increments.
 Config.StandardBaseWidths = {9,12,15,18,21,24,27,30,33,36,39,42}
 
--- Field/custom visualization adjustment. A selected standard cabinet may be shown
--- slightly narrower/wider without turning the operation into a generic Scale.
+-- Custom center-mass resizing may use any width inside Config.Limits.Width.
+-- No legacy +/-2 inch field-adjustment cap.
 Config.FieldAdjustment = {
-    MaxWidthDelta = 2.0,
-    PreferFillerBeyondDelta = true,
+    MaxWidthDelta = nil,
+    PreferFillerBeyondDelta = false,
+    FreeWidth = true,
 }
 
 Config.Fillers = {
