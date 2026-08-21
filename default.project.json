@@ -1,0 +1,12 @@
+{
+  "name": "Blueprint3DStudioKitchenCabinets",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "KitchenCabinets": {
+        "$path": "generators"
+      }
+    }
+  }
+}
