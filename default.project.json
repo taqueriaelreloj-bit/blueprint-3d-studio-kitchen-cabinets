@@ -2,10 +2,19 @@
   "name": "Blueprint3DStudioKitchenCabinets",
   "tree": {
     "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$path": "src/ReplicatedStorage"
+    },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "KitchenCabinets": {
-        "$path": "generators"
+      "$path": "src/ServerScriptService"
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src/StarterPlayer/StarterPlayerScripts"
       }
     }
   }
