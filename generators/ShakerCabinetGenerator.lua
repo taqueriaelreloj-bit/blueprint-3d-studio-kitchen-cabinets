@@ -19,7 +19,7 @@ local SHAKER_RAIL = 2.25
 local PANEL_DEPTH = 0.25
 
 local CABINET_COLOR = Color3.fromRGB(155, 152, 147)
-local INTERIOR_COLOR = Color3.fromRGB(194, 154, 105)
+-- All carcass, drawer and shelf components use the same painted gray.\nlocal INTERIOR_COLOR = CABINET_COLOR
 local HARDWARE_COLOR = Color3.fromRGB(115, 115, 112)
 
 local function part(parent, name, size, pos, color)
