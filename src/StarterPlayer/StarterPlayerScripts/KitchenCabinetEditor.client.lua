@@ -15,9 +15,9 @@ local selectedModel = nil
 local SNAP = 0.25
 local dragStartWidth = nil
 local dragStartProxyCFrame = nil
+local dragStartProxySize = nil
 local dragSide = nil
-local lastSentWidth = nil
-local lastSendTime = 0
+local dragPreviewWidth = nil
 
 local highlight = Instance.new("Highlight")
 highlight.Name = "KitchenCabinetSelection"
@@ -27,7 +27,8 @@ highlight.OutlineTransparency = 0
 highlight.Enabled = false
 highlight.Parent = workspace.CurrentCamera
 
--- Invisible client-only proxy used only by Roblox Handles.
+-- Client-only proxy for resize handles. During drag ONLY this proxy changes.
+-- The real cabinet is transformed once on release so geometry never accumulates errors.
 local handleProxy = Instance.new("Part")
 handleProxy.Name = "KitchenCabinetWidthHandleProxy"
 handleProxy.Anchored = true
@@ -245,45 +246,55 @@ end
 widthHandles.MouseButton1Down:Connect(function(face)
     if not selectedModel then return end
     if face ~= Enum.NormalId.Left and face ~= Enum.NormalId.Right then return end
+
     local _,size=selectedModel:GetBoundingBox()
     dragStartWidth=selectedModel:GetAttribute("WidthInches") or size.X
     dragStartProxyCFrame=handleProxy.CFrame
+    dragStartProxySize=handleProxy.Size
     dragSide=face == Enum.NormalId.Right and "Right" or "Left"
-    lastSentWidth=nil
-    statusLabel.Text="Dragging width..."
+    dragPreviewWidth=dragStartWidth
+    statusLabel.Text="Dragging width preview..."
 end)
 
 widthHandles.MouseDrag:Connect(function(face,distance)
     if not selectedModel or not dragStartWidth or not dragSide then return end
+
+    -- Roblox Handles distance is measured outward from whichever face is dragged,
+    -- so positive distance means wider on BOTH left and right handles.
     local target=snapWidth(dragStartWidth + distance)
     target=math.clamp(target,7,44)
+    dragPreviewWidth=target
     widthBox.Text=string.format("%.2f",target)
-    statusLabel.Text=string.format("Width %.2f in",target)
+    statusLabel.Text=string.format("Preview width %.2f in",target)
 
-    -- Immediate visual proxy feedback: opposite edge stays fixed.
+    -- Preview only. Keep the opposite edge fixed visually.
     local delta=target-dragStartWidth
     local sign=dragSide=="Right" and 1 or -1
-    handleProxy.Size=Vector3.new(target,handleProxy.Size.Y,handleProxy.Size.Z)
+    handleProxy.Size=Vector3.new(target,dragStartProxySize.Y,dragStartProxySize.Z)
     handleProxy.CFrame=dragStartProxyCFrame + dragStartProxyCFrame.RightVector*(delta*0.5*sign)
-
-    local now=os.clock()
-    if (not lastSentWidth or math.abs(target-lastSentWidth)>=SNAP) and now-lastSendTime>=0.06 then
-        lastSentWidth=target
-        lastSendTime=now
-        editEvent:FireServer(selectedModel,"resizeWidthFromSide",{width=target,side=dragSide})
-    end
 end)
 
 widthHandles.MouseButton1Up:Connect(function()
     if not selectedModel or not dragSide then return end
-    local finalWidth=tonumber(widthBox.Text)
-    if finalWidth then
-        editEvent:FireServer(selectedModel,"resizeWidthFromSide",{width=finalWidth,side=dragSide})
-    end
+
+    local finalWidth=dragPreviewWidth or dragStartWidth
+    local finalSide=dragSide
+
+    -- Clear drag state before server mutation so normal selection logic cannot
+    -- accidentally treat the transformation as another drag step.
     dragStartWidth=nil
     dragStartProxyCFrame=nil
+    dragStartProxySize=nil
+    dragPreviewWidth=nil
     dragSide=nil
-    task.delay(0.12,function()
+
+    if finalWidth then
+        -- ONE authoritative geometry operation. This prevents the repeated
+        -- center-mass transforms that previously produced the L-shaped cabinet.
+        editEvent:FireServer(selectedModel,"resizeWidthFromSide",{width=finalWidth,side=finalSide})
+    end
+
+    task.delay(0.15,function()
         if selectedModel and selectedModel.Parent then
             refreshFields(selectedModel)
             statusLabel.Text="Width resize complete"
@@ -318,4 +329,4 @@ rotateButton.MouseButton1Click:Connect(function()
     end
 end)
 
-print("KitchenCabinetEditor.client loaded - width drag handles active")
+print("KitchenCabinetEditor.client loaded - safe width drag preview active")
