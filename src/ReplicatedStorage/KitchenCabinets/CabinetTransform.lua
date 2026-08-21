@@ -61,11 +61,24 @@ end
 local function category(obj)
     local path = ancestryText(obj)
     local name = string.lower(obj.Name)
+
     if path:find("pull") or path:find("handle") or path:find("hinge") then return "hardware" end
+
+    -- Cabinet sides and Shaker vertical stiles keep their real thickness.
     if name:find("leftside") or name:find("rightside") then return "fixedEdge" end
     if name:find("leftstile") or name:find("rightstile") or name:find("stile") then return "fixedEdge" end
+
+    -- Drawer BOX sides must also keep their thickness. Previously these were
+    -- classified as generic stretch parts, which made the drawer look wrong.
+    if name == "drawerleft" or name == "drawerright" then return "fixedEdge" end
+
+    -- Drawer box bottom/back span the changing cabinet opening.
+    if name == "drawerbottom" or name == "drawerback" then return "stretch" end
+
+    -- Shaker horizontal rails and center panels receive/remove width at center.
     if name:find("toprail") or name:find("bottomrail") or name:find("rail") then return "stretch" end
     if name:find("centerpanel") or name == "panel" or path:find("centerpanel") then return "stretch" end
+
     if name:find("back") then return "stretch" end
     if name:find("toekick") then return "stretch" end
     return "stretch"
@@ -125,11 +138,7 @@ local function applyPullGroups(groups, pivot, delta, widthScale)
             local newSize = saved.size
 
             if group.horizontal then
-                -- Horizontal pulls grow with cabinet width as one 3-piece assembly.
-                -- Posts/screws keep their thickness but move apart proportionally.
                 newX = group.centerX + groupShiftX + (relativeX * widthScale)
-
-                -- Only the long center bar stretches; posts remain the same size.
                 if name:find("bar") or name:find("rail") or name:find("center") then
                     newSize = Vector3.new(math.max(0.05, saved.size.X * widthScale), saved.size.Y, saved.size.Z)
                 end
