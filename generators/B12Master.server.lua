@@ -50,9 +50,17 @@ local function pull(parent,name,len,y,frameZ)
  P(m,"PostRight",Vector3.new(0.26,0.26,0.62),Vector3.new(px,y,z),METAL)
 end
 
--- Delete every prior test/master model so old geometry cannot remain visible.
-for _,obj in ipairs(workspace:GetChildren()) do
- if obj:IsA("Model") and (obj.Name=="B12_MASTER_SHAKER" or obj.Name=="ShakerBase_B12" or obj.Name=="B12") then
+-- Remove every previous B12 preview before generating a new one.
+-- The family generator stores ShakerBase_B12 inside GeneratedShakerCabinets,
+-- so search recursively instead of checking only workspace's direct children.
+local PREVIEW_NAMES = {
+ B12_MASTER_SHAKER = true,
+ ShakerBase_B12 = true,
+ B12 = true,
+}
+
+for _,obj in ipairs(workspace:GetDescendants()) do
+ if obj:IsA("Model") and PREVIEW_NAMES[obj.Name] then
   obj:Destroy()
  end
 end
@@ -113,5 +121,5 @@ c:SetAttribute("SideRevealInches",REVEAL)
 c:SetAttribute("DrawerDoorGapInches",GAP)
 c:SetAttribute("ToeKickHeightInches",TOE_H)
 c:SetAttribute("ToeKickRecessInches",TOE_DEPTH)
-c:SetAttribute("MasterVersion","3-clean")
-print("B12 MASTER SHAKER v3 CLEAN generated")
+c:SetAttribute("MasterVersion","4-single-preview")
+print("B12 MASTER SHAKER v4 SINGLE PREVIEW generated")
