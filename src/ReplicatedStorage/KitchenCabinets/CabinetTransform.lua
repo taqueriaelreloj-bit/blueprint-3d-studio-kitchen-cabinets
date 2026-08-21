@@ -43,26 +43,31 @@ local function ancestryText(obj)
     return table.concat(names, "/")
 end
 
+local function isPullContainer(instance)
+    if not instance or instance:IsA("BasePart") then return false end
+    local name = string.lower(instance.Name)
+    return name:find("pull") ~= nil or name:find("handle") ~= nil
+end
+
+local function getPullContainer(part, cabinetModel)
+    local current = part.Parent
+    while current and current ~= cabinetModel do
+        if isPullContainer(current) then return current end
+        current = current.Parent
+    end
+    return nil
+end
+
 local function category(obj)
     local path = ancestryText(obj)
     local name = string.lower(obj.Name)
-
-    -- Hardware is rigid. It never changes size; it is repositioned only.
     if path:find("pull") or path:find("handle") or path:find("hinge") then return "hardware" end
-
-    -- Fixed-width vertical members move outward/inward but keep their thickness.
     if name:find("leftside") or name:find("rightside") then return "fixedEdge" end
     if name:find("leftstile") or name:find("rightstile") or name:find("stile") then return "fixedEdge" end
-
-    -- Horizontal Shaker rails grow through their width only.
     if name:find("toprail") or name:find("bottomrail") or name:find("rail") then return "stretch" end
-
-    -- Drawer/door center panels absorb center mass while keeping Y/Z unchanged.
     if name:find("centerpanel") or name == "panel" or path:find("centerpanel") then return "stretch" end
-
     if name:find("back") then return "stretch" end
     if name:find("toekick") then return "stretch" end
-
     return "stretch"
 end
 
@@ -74,15 +79,56 @@ local function resolveRequestedWidth(model, requested)
     return resolved
 end
 
+local function collectRigidPulls(model, pivot)
+    local groups = {}
+    for _, obj in ipairs(model:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            local container = getPullContainer(obj, model)
+            if container then
+                local group = groups[container]
+                if not group then
+                    group = { parts = {}, sumX = 0, count = 0 }
+                    groups[container] = group
+                end
+                local localCf = pivot:ToObjectSpace(obj.CFrame)
+                table.insert(group.parts, { part = obj, localCf = localCf, size = obj.Size })
+                group.sumX += localCf.Position.X
+                group.count += 1
+            end
+        end
+    end
+    for _, group in pairs(groups) do
+        group.centerX = group.count > 0 and group.sumX / group.count or 0
+    end
+    return groups
+end
+
+local function applyRigidPulls(groups, pivot, delta)
+    for _, group in pairs(groups) do
+        -- Move the entire multi-part pull as one rigid assembly.
+        -- Internal spacing, screw/post distance, bar length and part sizes stay unchanged.
+        local shiftX = 0
+        if math.abs(group.centerX) > EPS then
+            shiftX = group.centerX > 0 and delta/2 or -delta/2
+        end
+        for _, saved in ipairs(group.parts) do
+            local p = saved.localCf.Position
+            saved.part.Size = saved.size
+            saved.part.CFrame = pivot * CFrame.new(p.X + shiftX, p.Y, p.Z) * (saved.localCf - saved.localCf.Position)
+        end
+    end
+end
+
 local function applyCenterMassWidth(model, targetWidth)
     local pivot = model:GetPivot()
     local _, oldSize = model:GetBoundingBox()
     if oldSize.X <= EPS then return end
 
     local delta = targetWidth - oldSize.X
+    local rigidPulls = collectRigidPulls(model, pivot)
 
     for _, obj in ipairs(model:GetDescendants()) do
-        if obj:IsA("BasePart") then
+        if obj:IsA("BasePart") and not getPullContainer(obj, model) then
             local localCf = pivot:ToObjectSpace(obj.CFrame)
             local p = localCf.Position
             local kind = category(obj)
@@ -90,21 +136,15 @@ local function applyCenterMassWidth(model, targetWidth)
             local newSizeX = obj.Size.X
 
             if kind == "hardware" then
-                -- Pulls/handles stay exactly the same size.
-                -- Centered hardware stays centered; off-center hardware follows its side.
+                -- Single-part hardware remains rigid too.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
-                else
-                    newX = 0
                 end
             elseif kind == "fixedEdge" then
-                -- Cabinet sides and Shaker stiles keep their original width.
                 if math.abs(p.X) > EPS then
                     newX = p.X + (p.X > 0 and delta/2 or -delta/2)
                 end
             else
-                -- Rails, center panels, back and toe kick receive/remove mass at center.
-                -- Y and Z dimensions are never changed.
                 newSizeX = math.max(0.05, obj.Size.X + delta)
             end
 
@@ -112,6 +152,8 @@ local function applyCenterMassWidth(model, targetWidth)
             obj.CFrame = pivot * CFrame.new(newX, p.Y, p.Z) * (localCf - localCf.Position)
         end
     end
+
+    applyRigidPulls(rigidPulls, pivot, delta)
 end
 
 local function correctExactWidth(model, targetWidth)
