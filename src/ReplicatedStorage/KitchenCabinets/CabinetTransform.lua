@@ -61,24 +61,13 @@ end
 local function category(obj)
     local path = ancestryText(obj)
     local name = string.lower(obj.Name)
-
     if path:find("pull") or path:find("handle") or path:find("hinge") then return "hardware" end
-
-    -- Cabinet sides and Shaker vertical stiles keep their real thickness.
     if name:find("leftside") or name:find("rightside") then return "fixedEdge" end
     if name:find("leftstile") or name:find("rightstile") or name:find("stile") then return "fixedEdge" end
-
-    -- Drawer BOX sides must also keep their thickness. Previously these were
-    -- classified as generic stretch parts, which made the drawer look wrong.
     if name == "drawerleft" or name == "drawerright" then return "fixedEdge" end
-
-    -- Drawer box bottom/back span the changing cabinet opening.
     if name == "drawerbottom" or name == "drawerback" then return "stretch" end
-
-    -- Shaker horizontal rails and center panels receive/remove width at center.
     if name:find("toprail") or name:find("bottomrail") or name:find("rail") then return "stretch" end
     if name:find("centerpanel") or name == "panel" or path:find("centerpanel") then return "stretch" end
-
     if name:find("back") then return "stretch" end
     if name:find("toekick") then return "stretch" end
     return "stretch"
@@ -128,7 +117,6 @@ local function applyPullGroups(groups, pivot, delta, widthScale)
         if math.abs(group.centerX) > EPS then
             groupShiftX = group.centerX > 0 and delta/2 or -delta/2
         end
-
         for _, saved in ipairs(group.parts) do
             local part = saved.part
             local p = saved.localCf.Position
@@ -136,14 +124,12 @@ local function applyPullGroups(groups, pivot, delta, widthScale)
             local relativeX = p.X - group.centerX
             local newX = p.X + groupShiftX
             local newSize = saved.size
-
             if group.horizontal then
                 newX = group.centerX + groupShiftX + (relativeX * widthScale)
                 if name:find("bar") or name:find("rail") or name:find("center") then
                     newSize = Vector3.new(math.max(0.05, saved.size.X * widthScale), saved.size.Y, saved.size.Z)
                 end
             end
-
             part.Size = newSize
             part.CFrame = pivot * CFrame.new(newX, p.Y, p.Z) * (saved.localCf - saved.localCf.Position)
         end
@@ -154,7 +140,6 @@ local function applyCenterMassWidth(model, targetWidth)
     local pivot = model:GetPivot()
     local _, oldSize = model:GetBoundingBox()
     if oldSize.X <= EPS then return end
-
     local delta = targetWidth - oldSize.X
     local widthScale = targetWidth / oldSize.X
     local pullGroups = collectPullGroups(model, pivot)
@@ -166,24 +151,17 @@ local function applyCenterMassWidth(model, targetWidth)
             local kind = category(obj)
             local newX = p.X
             local newSizeX = obj.Size.X
-
             if kind == "hardware" then
-                if math.abs(p.X) > EPS then
-                    newX = p.X + (p.X > 0 and delta/2 or -delta/2)
-                end
+                if math.abs(p.X) > EPS then newX = p.X + (p.X > 0 and delta/2 or -delta/2) end
             elseif kind == "fixedEdge" then
-                if math.abs(p.X) > EPS then
-                    newX = p.X + (p.X > 0 and delta/2 or -delta/2)
-                end
+                if math.abs(p.X) > EPS then newX = p.X + (p.X > 0 and delta/2 or -delta/2) end
             else
                 newSizeX = math.max(0.05, obj.Size.X + delta)
             end
-
             obj.Size = Vector3.new(newSizeX, obj.Size.Y, obj.Size.Z)
             obj.CFrame = pivot * CFrame.new(newX, p.Y, p.Z) * (localCf - localCf.Position)
         end
     end
-
     applyPullGroups(pullGroups, pivot, delta, widthScale)
 end
 
@@ -201,21 +179,36 @@ end
 function Transform.ResizeWidth(model, requestedWidth)
     assert(model and model:IsA("Model"), "ResizeWidth requires a Model")
     ensureAttributes(model)
-
     local originalHeight = model:GetAttribute(Config.HeightAttribute) or getModelSize(model).Y
     local originalDepth = model:GetAttribute(Config.DepthAttribute) or getModelSize(model).Z
     local targetWidth = resolveRequestedWidth(model, requestedWidth)
-
     applyCenterMassWidth(model, targetWidth)
     local finalSize = correctExactWidth(model, targetWidth)
-
     model:SetAttribute(Config.WidthAttribute, finalSize.X)
     model:SetAttribute(Config.HeightAttribute, originalHeight)
     model:SetAttribute(Config.DepthAttribute, originalDepth)
     model:SetAttribute("RequestedWidthInches", requestedWidth)
     model:SetAttribute("WidthErrorInches", finalSize.X - targetWidth)
-
     return finalSize.X, originalHeight, originalDepth
+end
+
+function Transform.ResizeWidthFromSide(model, requestedWidth, side)
+    assert(model and model:IsA("Model"), "ResizeWidthFromSide requires a Model")
+    assert(side == "Left" or side == "Right", "side must be Left or Right")
+    ensureAttributes(model)
+
+    local oldWidth = model:GetAttribute(Config.WidthAttribute) or getModelSize(model).X
+    local oldPivot = model:GetPivot()
+    local finalWidth, h, d = Transform.ResizeWidth(model, requestedWidth)
+    local delta = finalWidth - oldWidth
+
+    -- Keep the opposite cabinet edge anchored while dragging one side.
+    -- Right handle moves cabinet center +delta/2; Left handle moves -delta/2.
+    local sign = side == "Right" and 1 or -1
+    local shift = oldPivot.RightVector * (delta * 0.5 * sign)
+    model:PivotTo(model:GetPivot() + shift)
+
+    return finalWidth, h, d
 end
 
 function Transform.Resize(model, width, _height, _depth)
