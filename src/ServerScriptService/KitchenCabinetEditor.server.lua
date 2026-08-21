@@ -49,6 +49,12 @@ editEvent.OnServerEvent:Connect(function(player, target, action, payload)
         if w and h and d then
             Transform.Resize(cabinet, w, h, d)
         end
+    elseif action == "resizeWidthFromSide" and typeof(payload) == "table" then
+        local w = tonumber(payload.width)
+        local side = payload.side
+        if w and (side == "Left" or side == "Right") then
+            Transform.ResizeWidthFromSide(cabinet, w, side)
+        end
     elseif action == "mirrorX" then
         Transform.MirrorX(cabinet)
     elseif action == "rotate90" then
